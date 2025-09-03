@@ -1,3 +1,4 @@
+
 create table if not exists public.config_info
 (
     id                 bigserial
@@ -17,33 +18,32 @@ create table if not exists public.config_info
     effect             varchar(64)  default NULL::character varying,
     type               varchar(64)  default NULL::character varying,
     c_schema           text,
-    encrypted_data_key text,
+    encrypted_data_key text NOT NULL DEFAULT '',
     constraint uk_configinfo_datagrouptenant
         unique (data_id, group_id, tenant_id)
 );
 
-create table if not exists public.config_info_aggr
-(
-    id           bigserial
-        primary key,
-    data_id      varchar(255)                           not null,
-    group_id     varchar(255)                           not null,
-    datum_id     varchar(255)                           not null,
-    content      text                                   not null,
-    gmt_modified timestamp    default CURRENT_TIMESTAMP not null,
-    app_name     varchar(128) default NULL::character varying,
-    tenant_id    varchar(128) default ''::character varying,
-    constraint uk_configinfoaggr_datagrouptenantdatum
-        unique (data_id, group_id, tenant_id, datum_id)
+create table if not exists public.config_info_gray (
+    id bigserial NOT NULL PRIMARY KEY,
+    data_id varchar(255) NOT NULL,
+    group_id varchar(128) NOT NULL,
+    content text NOT NULL,
+    md5 varchar(32) DEFAULT NULL,
+    src_user text,
+    src_ip varchar(100) DEFAULT NULL,
+    gmt_create timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    gmt_modified timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    app_name varchar(128) DEFAULT NULL,
+    tenant_id varchar(128) DEFAULT '',
+    gray_name varchar(128) NOT NULL,
+    gray_rule text NOT NULL,
+    encrypted_data_key varchar(256) NOT NULL DEFAULT '',
+    CONSTRAINT uk_configinfogray_datagrouptenantgray UNIQUE (data_id, group_id, tenant_id, gray_name)
 );
+CREATE INDEX idx_dataid_gmt_modified ON public.config_info_gray (data_id, gmt_modified);
+CREATE INDEX idx_gmt_modified_gray ON public.config_info_gray (gmt_modified);
+COMMENT ON TABLE public.config_info_gray IS 'config_info_gray';
 
-comment on table public.config_info_aggr is '增加租户字段';
-
-comment on column public.config_info_aggr.content is '内容';
-
-comment on column public.config_info_aggr.gmt_modified is '修改时间';
-
-comment on column public.config_info_aggr.tenant_id is '租户字段';
 
 create table if not exists public.config_info_beta
 (
@@ -60,7 +60,7 @@ create table if not exists public.config_info_beta
     src_user           text,
     src_ip             varchar(50)   default NULL::character varying,
     tenant_id          varchar(128)  default ''::character varying,
-    encrypted_data_key text,
+    encrypted_data_key text NOT NULL DEFAULT '',
     constraint uk_configinfobeta_datagrouptenant
         unique (data_id, group_id, tenant_id)
 );
@@ -168,7 +168,10 @@ create table if not exists public.his_config_info
     src_ip             varchar(50)  default NULL::character varying,
     op_type            char(10)     default NULL::bpchar,
     tenant_id          varchar(128) default ''::character varying,
-    encrypted_data_key text
+    encrypted_data_key text NOT NULL DEFAULT '',
+    publish_type       varchar(50)  DEFAULT 'formal',
+    gray_name          varchar(128) DEFAULT NULL,
+    ext_info           text DEFAULT NULL
 );
 
 create index if not exists idx_gmt_create
@@ -252,21 +255,17 @@ create table if not exists public.users
 create table if not exists public.roles
 (
     username varchar(50) not null,
-    role     varchar(50) not null
+    role     varchar(50) not null,
+    constraint idx_user_role unique (username, role)
 );
-
-create index if not exists idx_user_role
-    on public.roles (username, role);
 
 create table if not exists public.permissions
 (
     role     varchar(50)  not null,
-    resource varchar(255) not null,
-    action   varchar(8)   not null
+    resource varchar(128) not null,
+    action   varchar(8)   not null,
+    constraint uk_role_permission unique (role, resource, action)
 );
-
-create index if not exists uk_role_permission
-    on public.permissions (role, resource, action);
 
 INSERT INTO users (username, password, enabled)
 VALUES ('nacos', '$2a$10$EuWPZHzz32dJN7jexM34MOeYirDdFAZm2kuWj7VEOJhhZkDrxfvUu', TRUE);
